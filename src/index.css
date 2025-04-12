@@ -1,0 +1,12 @@
+/* @import "tailwindcss"; */
+/* @plugin "daisyui"{
+    themes: myCustomTheme;
+  } */
+
+
+  .custom-gradient-task-board {
+    background: linear-gradient(to bottom right, #28a9b4e9,#2ab6c2eb);
+  }
+  .custom-gradient-side-bar {
+    background: linear-gradient(to bottom, #2E5077, rgba(46, 80, 119, 0.9));
+  }
