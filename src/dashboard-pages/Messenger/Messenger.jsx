@@ -57,7 +57,7 @@ const Messenger = () => {
       if (!currentUser?._id) return; // Ensure currentUser is available
 
       try {
-        const response = await axios.get("https://brainiacs-server.onrender.com/boards"); // Updated base URL
+        const response = await axios.get("http://localhost:5000/boards"); // Updated base URL
         const userBoards = response.data.filter((board) =>
           board.members?.some((member) => member.userId === currentUser._id)
         ); // Filter boards where the user is a member
@@ -115,7 +115,7 @@ const Messenger = () => {
 
       try {
         const response = await fetch(
-          `https://brainiacs-server.onrender.com/boards/${selectedBoard._id}` // Updated base URL
+          `http://localhost:5000/boards/${selectedBoard._id}` // Updated base URL
         );
         if (response.ok) {
           const boardData = await response.json();
@@ -207,7 +207,7 @@ const Messenger = () => {
 
     try {
       const response = await fetch(
-        `https://brainiacs-server.onrender.com/boards/${selectedBoard._id}/messages`, // Updated base URL
+        `http://localhost:5000/boards/${selectedBoard._id}/messages`, // Updated base URL
         {
           method: "PUT",
           headers: {
@@ -241,7 +241,7 @@ const Messenger = () => {
 
     try {
       const response = await fetch(
-        `https://brainiacs-server.onrender.com/boards/${selectedBoard._id}/messages/${messageId}`, // Updated base URL
+        `http://localhost:5000/boards/${selectedBoard._id}/messages/${messageId}`, // Updated base URL
         {
           method: "PATCH",
           headers: {
@@ -271,7 +271,7 @@ const Messenger = () => {
 
     try {
       const response = await fetch(
-        `https://brainiacs-server.onrender.com/boards/${selectedBoard._id}/messages/${messageId}`, // Updated base URL
+        `http://localhost:5000/boards/${selectedBoard._id}/messages/${messageId}`, // Updated base URL
         {
           method: "DELETE",
           headers: {
@@ -304,7 +304,7 @@ const Messenger = () => {
 
     try {
       const response = await fetch(
-        `https://brainiacs-server.onrender.com/boards/${selectedBoard._id}/messages/${messageId}/seen`,
+        `http://localhost:5000/boards/${selectedBoard._id}/messages/${messageId}/seen`,
         {
           method: "PATCH",
           headers: {
@@ -334,7 +334,7 @@ const Messenger = () => {
 
     try {
       const response = await fetch(
-        `https://brainiacs-server.onrender.com/boards/${selectedBoard._id}/messages/${messageId}/pin`,
+        `http://localhost:5000/boards/${selectedBoard._id}/messages/${messageId}/pin`,
         {
           method: "PATCH",
           headers: {
@@ -363,7 +363,7 @@ const Messenger = () => {
 
     try {
       const response = await fetch(
-        `https://brainiacs-server.onrender.com/boards/${selectedBoard._id}/messages/${messageId}/unpin`,
+        `http://localhost:5000/boards/${selectedBoard._id}/messages/${messageId}/unpin`,
         {
           method: "PATCH",
           headers: {
@@ -392,7 +392,7 @@ const Messenger = () => {
 
     try {
       const response = await fetch(
-        `https://brainiacs-server.onrender.com/boards/${selectedBoard._id}/messages/${messageId}/react`, // Updated base URL
+        `http://localhost:5000/boards/${selectedBoard._id}/messages/${messageId}/react`, // Updated base URL
         {
           method: "PATCH",
           headers: {
@@ -436,7 +436,7 @@ const Messenger = () => {
 
     try {
       const response = await fetch(
-        `https://brainiacs-server.onrender.com/boards/${selectedBoard._id}/polls`, // Updated base URL
+        `http://localhost:5000/boards/${selectedBoard._id}/polls`, // Updated base URL
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -458,7 +458,7 @@ const Messenger = () => {
   const votePoll = async (pollId, optionIndex) => {
     try {
       const response = await fetch(
-        `https://brainiacs-server.onrender.com/boards/${selectedBoard._id}/polls/${pollId}/vote`,
+        `http://localhost:5000/boards/${selectedBoard._id}/polls/${pollId}/vote`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },

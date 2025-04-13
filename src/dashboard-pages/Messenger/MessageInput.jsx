@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { motion } from "framer-motion";
 import { FaCirclePlus } from "react-icons/fa6";
 import { AiOutlineSend } from "react-icons/ai";
@@ -11,6 +11,19 @@ const MessageInput = ({
   setShowAttachDropdown,
   attachDropdownRef,
 }) => {
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (attachDropdownRef.current && !attachDropdownRef.current.contains(event.target)) {
+        setShowAttachDropdown(false); // Close the dropdown
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
   return (
     <motion.div
       className="mt-4 sm:mt-6 flex flex-col sm:flex-row items-center relative shadow-md p-4 rounded-lg bg-gray-100"
@@ -58,6 +71,12 @@ const MessageInput = ({
         placeholder="Type your message..."
         value={newMessage}
         onChange={(e) => setNewMessage(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault(); // Prevent newline
+            sendMessage();
+          }
+        }}
       />
       <motion.button
         className="ml-0 sm:ml-4 mt-4 sm:mt-0 bg-primary text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg hover:bg-primary transition duration-200"

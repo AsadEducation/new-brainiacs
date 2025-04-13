@@ -33,6 +33,8 @@ const ChatWindow = ({
     isOpen: false,
     reactions: {},
   });
+  const [pinModal, setPinModal] = useState({ isOpen: false, messageId: null }); // State for pin modal
+  const [pinnedLogModal, setPinnedLogModal] = useState(false); // State for pinned log modal
 
   const dropdownRef = useRef(null);
 
@@ -48,6 +50,15 @@ const ChatWindow = ({
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
+
+  const handlePinMessage = (messageId) => {
+    setPinModal({ isOpen: true, messageId }); // Open the pin modal
+  };
+
+  const confirmPinMessage = (duration) => {
+    pinMessage(pinModal.messageId, duration); // Call the pinMessage function
+    setPinModal({ isOpen: false, messageId: null }); // Close the modal
+  };
 
   const removeReaction = async (messageId, emoji, userId) => {
     try {
@@ -166,21 +177,7 @@ const ChatWindow = ({
                             <ul className="py-2">
                               <li
                                 className="px-4 py-2 hover:shadow cursor-pointer"
-                                onClick={() => {
-                                  const duration = parseInt(
-                                    prompt(
-                                      "Enter pin duration (1, 3, 7, or 15 days):",
-                                      "1"
-                                    ),
-                                    10
-                                  );
-                                  if ([1, 3, 7, 15].includes(duration)) {
-                                    pinMessage(msg.messageId, duration);
-                                  } else {
-                                    alert("Invalid duration");
-                                  }
-                                  setShowMessageOptions(null);
-                                }}
+                                onClick={() => handlePinMessage(msg.messageId)}
                               >
                                 Pin
                               </li>
@@ -241,8 +238,10 @@ const ChatWindow = ({
                             msg.reactions &&
                             Object.keys(msg.reactions).length > 0 && (
                               <div
-                                className={`absolute -bottom-4  ${
-                                  isSender ? "px-2 py-1 left-1 bg-white" : "left-10"
+                                className={`absolute -bottom-4 ${
+                                  isSender
+                                    ? "px-2 py-1 left-1 bg-white"
+                                    : "px-2 py-1 right-1 bg-gray-200"
                                 } text-xs sm:text-sm mt-2 rounded-lg flex gap-2`}
                               >
                                 {Object.entries(msg.reactions).map(
@@ -252,7 +251,7 @@ const ChatWindow = ({
                                         key={emoji}
                                         className={`flex items-center gap-1 cursor-pointer ${
                                           users.includes(currentUser._id)
-                                            ? "bg-primary text-white px-2 py-1 rounded-lg absolute bottom-0 left-13"
+                                            ? "bg-primary text-white px-2 py-1 rounded-lg"
                                             : ""
                                         }`}
                                         onClick={(e) => {
@@ -372,6 +371,77 @@ const ChatWindow = ({
           </p>
         )}
       </motion.div>
+
+      {/* Add a button to show pinned messages log */}
+      <button
+        className="fixed bottom-4 right-4 bg-primary text-white px-4 py-2 rounded-lg shadow-lg hover:bg-accent transition"
+        onClick={() => setPinnedLogModal(true)}
+      >
+        View Pinned Messages Log
+      </button>
+
+      {/* Pinned Messages Log Modal */}
+      {pinnedLogModal && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 backdrop-blur-xs">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-bold mb-4">Pinned Messages Log</h3>
+            <ul className="space-y-4">
+              {pinnedMessages.length > 0 ? (
+                pinnedMessages.map((msg, index) => (
+                  <li key={index} className="border-b pb-2">
+                    <p className="text-sm text-gray-800">
+                      <strong>Message:</strong> {msg.text || "No text available"}
+                    </p>
+                    <p className="text-xs text-gray-600">
+                      <strong>Pinned By:</strong> {getSenderName(msg.pinnedBy)}
+                    </p>
+                    <p className="text-xs text-gray-600">
+                      <strong>Pin Expiry:</strong>{" "}
+                      {msg.pinExpiry
+                        ? new Date(msg.pinExpiry).toLocaleString()
+                        : "No expiry"}
+                    </p>
+                  </li>
+                ))
+              ) : (
+                <p className="text-gray-500 text-sm">No pinned messages found.</p>
+              )}
+            </ul>
+            <button
+              className="mt-4 px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition"
+              onClick={() => setPinnedLogModal(false)}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Pin Modal */}
+      {pinModal.isOpen && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 backdrop-blur-xs">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-sm">
+            <h3 className="text-lg font-bold mb-4">Select Pin Duration</h3>
+            <div className="flex flex-col gap-2">
+              {[1, 3, 7, 15].map((duration) => (
+                <button
+                  key={duration}
+                  className="px-4 py-2  rounded hover:bg-primary hover:text-white transition"
+                  onClick={() => confirmPinMessage(duration)}
+                >
+                  {duration} {duration === 1 ? "Day" : "Days"}
+                </button>
+              ))}
+            </div>
+            <button
+              className="mt-4 px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition"
+              onClick={() => setPinModal({ isOpen: false, messageId: null })}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {reactionModal.isOpen && (
         <div className="fixed inset-0 backdrop-blur-xs flex items-center justify-center z-50 px-4">

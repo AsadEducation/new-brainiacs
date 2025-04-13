@@ -26,7 +26,7 @@ const SignUp = () => {
       console.log("Signup Success:", res.user); // Log signup success data
 
       // Save user to the database
-      const response = await fetch("https://brainiacs-server.onrender.com/users", {
+      const response = await fetch("http://localhost:5000/users", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
