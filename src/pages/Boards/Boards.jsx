@@ -35,10 +35,15 @@ const Boards = () => {
         setBoards(response.data);
       } catch (error) {
         console.error("Error fetching boards:", error);
+        alert("Failed to fetch boards. Please try again later."); // User-friendly error message
       }
     };
     fetchBoards();
   }, []);
+
+  useEffect(() => {
+    console.log("Current User:", currentUser); // Log currentUser for debugging
+  }, [currentUser]);
 
   const createBoard = async () => {
     if (!newBoard) return alert("Board name is required!");
@@ -113,9 +118,20 @@ const Boards = () => {
     }
   };
 
-  const filteredBoards = boards.filter((board) =>
-    board.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredBoards = boards
+  .filter((board) =>
+    currentUser &&
+    board.members?.some((member) => member.userId === currentUser._id)
+  )
+  .filter((board) => {
+    const lowerCaseQuery = searchQuery.toLowerCase();
+    const lowerCaseName = board.name.toLowerCase();
+    return (
+      lowerCaseName.startsWith(lowerCaseQuery.slice(0, 3)) && // Match first 3 letters
+      lowerCaseName.includes(lowerCaseQuery) // Further matches
+    );
+  });
+
 
   return (
     <div className="p-6">
