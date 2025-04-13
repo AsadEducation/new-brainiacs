@@ -3,6 +3,7 @@ import React, { createContext, useEffect, useState } from 'react';
 import { auth } from '../Firebase/firebase.config';
 import { GoogleAuthProvider } from 'firebase/auth';
 import axios from "axios";
+import Loading from '../Component/Shared/Loading/Loading';
 
 export const AuthContext = createContext();
 
@@ -42,7 +43,7 @@ const AuthProvider = ({ children }) => {
     const fetchUserDataWithRetry = async (email, token, retries = 2) => {
         for (let attempt = 1; attempt <= retries; attempt++) {
             try {
-                const response = await axios.get(`http://localhost:5000/user/${email}`, {
+                const response = await axios.get(`https://brainiacs-server.onrender.com/user/${email}`, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
                 return response.data; // Return user data if successful
@@ -95,7 +96,7 @@ const AuthProvider = ({ children }) => {
     }, []);
 
     if (loading) {
-        return <div>Loading...</div>; // Show a loading state while fetching user
+        return <div><Loading/></div>; // Show a loading state while fetching user
     }
 
     const authInfo = {

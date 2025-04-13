@@ -6,7 +6,7 @@ const MyProfile = () => {
   const { currentUser } = useAuth();
 
   useEffect(() => {
-    fetch("http://localhost:5000/myProfile")
+    fetch("https://brainiacs-server.onrender.com/myProfile")
       .then((res) => res.json())
       .then((data) => setSummary(data))
       .catch((err) => console.error(err));
@@ -31,7 +31,7 @@ const MyProfile = () => {
 
       <div className="bg-white border rounded-xl p-6 max-w-md mx-auto shadow-lg mb-10">
         <div className="flex justify-between items-center mb-2">
-          <span className="text-lg font-semibold">👤 Opu</span>
+          <span className="text-lg font-semibold">👤  {currentUser?.displayName || "Anonymous"}</span>
           <span className="text-lg font-semibold text-secondary">
             Points: {points}
           </span>

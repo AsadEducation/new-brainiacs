@@ -8,15 +8,23 @@ import {
   FaPhoneAlt,
   FaPoll,
   FaVideo,
+  FaArrowLeft, // Import icons
+  FaArrowRight, // Import icons
 } from "react-icons/fa";
 import { FaCirclePlus } from "react-icons/fa6";
 import { AiOutlineSend } from "react-icons/ai";
 import useAuth from "../../Hooks/useAuth"; // Import useAuth
+import { MdEmojiEmotions } from "react-icons/md";
+import axios from "axios"; // Import axios
+import MessengerHeader from "./MessengerHeader";
+import BoardList from "./BoardList";
+import ChatWindow from "./ChatWindow";
+import MessageInput from "./MessageInput";
 
 const Messenger = () => {
   const { currentUser } = useAuth(); // Access currentUser from AuthContext
   const { boardId } = useParams();
-  const navigate = useNavigate(); 
+  const navigate = useNavigate();
   const [boards, setBoards] = useState([]);
   const [selectedBoard, setSelectedBoard] = useState(null);
   const [showOptions, setShowOptions] = useState(false);
@@ -31,6 +39,12 @@ const Messenger = () => {
   const attachDropdownRef = useRef(null); // Ref for dropdown
   const lastMessageRef = useRef(null); // Ref for the last message
   const [showMessageOptions, setShowMessageOptions] = useState(null); // State to track which message's options are visible
+  const [isUserScrolling, setIsUserScrolling] = useState(false); // Track if the user is scrolling
+  const [pinnedMessages, setPinnedMessages] = useState([]);
+  const [currentPinnedIndex, setCurrentPinnedIndex] = useState(0);
+  const [showReactionDropdown, setShowReactionDropdown] = useState(null); // Track which message's reaction dropdown is visible
+  const [polls, setPolls] = useState([]); // State to store polls
+  const [selectedPollOption, setSelectedPollOption] = useState(null); // Track selected poll option
 
   useEffect(() => {
     if (currentUser) {
@@ -39,22 +53,32 @@ const Messenger = () => {
   }, [currentUser]);
 
   useEffect(() => {
-    // Fetch the list of boards the user is a member of
-    fetch("http://localhost:5000/boards") // Updated API endpoint
-      .then((res) => res.json())
-      .then((data) => {
-        setBoards(data);
-        if (data.length > 0) {
+    const fetchBoards = async () => {
+      if (!currentUser?._id) return; // Ensure currentUser is available
+
+      try {
+        const response = await axios.get("https://brainiacs-server.onrender.com/boards"); // Updated base URL
+        const userBoards = response.data.filter((board) =>
+          board.members?.some((member) => member.userId === currentUser._id)
+        ); // Filter boards where the user is a member
+        setBoards(userBoards);
+
+        if (userBoards.length > 0) {
           const defaultBoard =
-            data.find((board) => board._id === boardId) || data[0];
-          setSelectedBoard(defaultBoard); // Set the board based on route or default to the first board
+            userBoards.find((board) => board._id === boardId) || userBoards[0];
+          setSelectedBoard(defaultBoard);
           if (!boardId) {
-            navigate(`/dashboard/messenger/${defaultBoard._id}`); // Redirect to the first board if no boardId is provided
+            navigate(`/dashboard/messenger/${defaultBoard._id}`);
           }
         }
-      })
-      .catch((err) => console.error("Error fetching boards:", err));
-  }, [boardId, navigate]);
+      } catch (error) {
+        console.error("Error fetching boards:", error);
+        alert("Failed to fetch boards. Please try again later."); // User-friendly error message
+      }
+    };
+
+    fetchBoards();
+  }, [boardId, currentUser, navigate]);
 
   const handleBoardSelect = (board) => {
     setSelectedBoard(board);
@@ -70,7 +94,10 @@ const Messenger = () => {
       if (optionsRef.current && !optionsRef.current.contains(event.target)) {
         setShowOptions(false);
       }
-      if (attachDropdownRef.current && !attachDropdownRef.current.contains(event.target)) {
+      if (
+        attachDropdownRef.current &&
+        !attachDropdownRef.current.contains(event.target)
+      ) {
         setShowAttachDropdown(false);
       }
     };
@@ -88,7 +115,7 @@ const Messenger = () => {
 
       try {
         const response = await fetch(
-          `http://localhost:5000/boards/${selectedBoard._id}`
+          `https://brainiacs-server.onrender.com/boards/${selectedBoard._id}` // Updated base URL
         );
         if (response.ok) {
           const boardData = await response.json();
@@ -110,6 +137,18 @@ const Messenger = () => {
 
     fetchBoardData();
   }, [selectedBoard]);
+
+  const getUnseenMessageCount = (messages) => {
+    return messages.filter((msg) => !msg.seenBy?.includes(currentUser._id))
+      .length;
+  };
+
+  useEffect(() => {
+    // Scroll to the last message only if the user is not scrolling up
+    if (!isUserScrolling && lastMessageRef.current) {
+      lastMessageRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -168,7 +207,7 @@ const Messenger = () => {
 
     try {
       const response = await fetch(
-        `http://localhost:5000/boards/${selectedBoard._id}/messages`,
+        `https://brainiacs-server.onrender.com/boards/${selectedBoard._id}/messages`, // Updated base URL
         {
           method: "PUT",
           headers: {
@@ -199,10 +238,10 @@ const Messenger = () => {
 
   const editMessage = async (messageId, newText) => {
     if (!newText.trim() || !currentUser || !selectedBoard) return;
-  
+
     try {
       const response = await fetch(
-        `http://localhost:5000/boards/${selectedBoard._id}/messages/${messageId}`,
+        `https://brainiacs-server.onrender.com/boards/${selectedBoard._id}/messages/${messageId}`, // Updated base URL
         {
           method: "PATCH",
           headers: {
@@ -211,7 +250,7 @@ const Messenger = () => {
           body: JSON.stringify({ text: newText.trim() }),
         }
       );
-  
+
       if (response.ok) {
         const updatedMessage = await response.json();
         setMessages((prevMessages) =>
@@ -226,13 +265,13 @@ const Messenger = () => {
       console.error("Error editing message:", error);
     }
   };
-  
+
   const deleteMessage = async (messageId) => {
     if (!currentUser || !selectedBoard) return;
-  
+
     try {
       const response = await fetch(
-        `http://localhost:5000/boards/${selectedBoard._id}/messages/${messageId}`,
+        `https://brainiacs-server.onrender.com/boards/${selectedBoard._id}/messages/${messageId}`, // Updated base URL
         {
           method: "DELETE",
           headers: {
@@ -244,7 +283,7 @@ const Messenger = () => {
           }),
         }
       );
-  
+
       if (response.ok) {
         const updatedMessage = await response.json();
         setMessages((prevMessages) =>
@@ -259,215 +298,300 @@ const Messenger = () => {
       console.error("Error deleting message:", error);
     }
   };
-  
+
+  const markMessageAsSeen = async (messageId) => {
+    if (!currentUser || !selectedBoard) return;
+
+    try {
+      const response = await fetch(
+        `https://brainiacs-server.onrender.com/boards/${selectedBoard._id}/messages/${messageId}/seen`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ seenBy: currentUser._id }), // Pass the correct user ID
+        }
+      );
+
+      if (response.ok) {
+        const updatedMessage = await response.json();
+        setMessages((prevMessages) =>
+          prevMessages.map((msg) =>
+            msg.messageId === messageId ? updatedMessage : msg
+          )
+        );
+      } else {
+        console.error("Failed to mark message as seen");
+      }
+    } catch (error) {
+      console.error("Error marking message as seen:", error);
+    }
+  };
+
+  const pinMessage = async (messageId, duration) => {
+    if (!currentUser || !selectedBoard) return;
+
+    try {
+      const response = await fetch(
+        `https://brainiacs-server.onrender.com/boards/${selectedBoard._id}/messages/${messageId}/pin`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            pinnedBy: currentUser._id,
+            pinDuration: duration, // Duration in days
+          }),
+        }
+      );
+
+      if (response.ok) {
+        const updatedMessage = await response.json();
+        setPinnedMessages((prev) => [...prev, updatedMessage]);
+      } else {
+        console.error("Failed to pin message");
+      }
+    } catch (error) {
+      console.error("Error pinning message:", error);
+    }
+  };
+
+  const unpinMessage = async (messageId) => {
+    if (!currentUser || !selectedBoard) return;
+
+    try {
+      const response = await fetch(
+        `https://brainiacs-server.onrender.com/boards/${selectedBoard._id}/messages/${messageId}/unpin`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.ok) {
+        setPinnedMessages((prev) =>
+          prev.filter((msg) => msg.messageId !== messageId)
+        );
+      } else {
+        console.error("Failed to unpin message");
+      }
+    } catch (error) {
+      console.error("Error unpinning message:", error);
+    }
+  };
+
+  const reactToMessage = async (messageId, reaction) => {
+    if (!messageId || !currentUser || !selectedBoard) {
+      console.error("Invalid messageId or missing user/board context");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `https://brainiacs-server.onrender.com/boards/${selectedBoard._id}/messages/${messageId}/react`, // Updated base URL
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ userId: currentUser._id, reaction }),
+        }
+      );
+
+      if (response.ok) {
+        const updatedMessage = await response.json();
+        setMessages((prevMessages) =>
+          prevMessages.map((msg) =>
+            msg.messageId === messageId ? updatedMessage : msg
+          )
+        );
+      } else {
+        console.error("Failed to update reaction");
+      }
+    } catch (error) {
+      console.error("Error updating reaction:", error);
+    }
+  };
+
+  const createPoll = async () => {
+    const question = prompt("Enter your poll question:");
+    if (!question) return;
+
+    const options = prompt(
+      "Enter options separated by commas (e.g., Option1,Option2):"
+    );
+    if (!options) return;
+
+    const pollData = {
+      question,
+      options: options
+        .split(",")
+        .map((option) => ({ text: option.trim(), votes: [] })),
+      createdBy: currentUser._id,
+    };
+
+    try {
+      const response = await fetch(
+        `https://brainiacs-server.onrender.com/boards/${selectedBoard._id}/polls`, // Updated base URL
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(pollData),
+        }
+      );
+
+      if (response.ok) {
+        const newPoll = await response.json();
+        setPolls((prev) => [...prev, newPoll]);
+      } else {
+        console.error("Failed to create poll");
+      }
+    } catch (error) {
+      console.error("Error creating poll:", error);
+    }
+  };
+
+  const votePoll = async (pollId, optionIndex) => {
+    try {
+      const response = await fetch(
+        `https://brainiacs-server.onrender.com/boards/${selectedBoard._id}/polls/${pollId}/vote`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: currentUser._id, optionIndex }),
+        }
+      );
+
+      if (response.ok) {
+        const updatedPoll = await response.json();
+        setPolls((prev) =>
+          prev.map((poll) => (poll._id === pollId ? updatedPoll : poll))
+        );
+      } else {
+        console.error("Failed to vote on poll");
+      }
+    } catch (error) {
+      console.error("Error voting on poll:", error);
+    }
+  };
+
+  useEffect(() => {
+    // Filter out expired pinned messages
+    const now = new Date();
+    setPinnedMessages((prev) =>
+      prev.filter((msg) => new Date(msg.pinExpiry) > now)
+    );
+  }, [messages]);
+
+  const handlePreviousPinned = () => {
+    setCurrentPinnedIndex((prev) =>
+      prev === 0 ? pinnedMessages.length - 1 : prev - 1
+    );
+  };
+
+  const handleNextPinned = () => {
+    setCurrentPinnedIndex((prev) =>
+      prev === pinnedMessages.length - 1 ? 0 : prev + 1
+    );
+  };
+
+  useEffect(() => {
+    // Mark messages as seen when the user views the chat
+    if (messages.length > 0) {
+      messages.forEach((msg) => {
+        if (!msg.seenBy?.includes(currentUser._id)) {
+          markMessageAsSeen(msg.messageId);
+        }
+      });
+    }
+  }, [messages, currentUser]);
+
+  const handleScroll = (event) => {
+    const { scrollTop, scrollHeight, clientHeight } = event.target;
+    if (scrollTop + clientHeight < scrollHeight - 10) {
+      setIsUserScrolling(true); // User is scrolling up
+    } else {
+      setIsUserScrolling(false); // User is at the bottom
+    }
+  };
+
+  const getSeenByNames = (seenBy) => {
+    if (!seenBy || seenBy.length === 0) return "No one";
+
+    const otherMembers = members.filter(
+      (member) =>
+        seenBy.includes(member.userId) && member.userId !== currentUser._id
+    );
+    const otherNames = otherMembers.map((member) => member.name).join(", ");
+    const seenByYou = seenBy.includes(currentUser._id) ? "You" : "";
+
+    return [seenByYou, otherNames].filter(Boolean).join(", ");
+  };
 
   return (
-    <div className="messenger-container flex flex-col md:flex-row h-screen bg-gray-100">
+    <motion.div
+      className="messenger-container flex flex-col md:flex-row h-screen bg-gray-50"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.5 }}
+    >
       {/* Chat interface */}
       <motion.div
-        className="chat-interface w-full md:w-3/4 p-4 flex flex-col bg-white shadow-lg"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
+        className="chat-interface w-full md:w-3/4 p-4 sm:p-6 flex flex-col bg-white shadow-lg rounded-lg"
+        initial={{ x: -200 }}
+        animate={{ x: 0 }}
+        exit={{ x: -200 }}
         transition={{ duration: 0.5 }}
       >
         {selectedBoard ? (
           <>
             {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 border-b pb-2">
-              <motion.h2
-                className="text-lg font-bold text-primary mb-2 md:mb-0"
-                initial={{ y: -20 }}
-                animate={{ y: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                {selectedBoard.name}
-              </motion.h2>
-              <div className="flex items-center gap-4">
-                <button className="text-primary hover:text-accent">
-                  <FaPhoneAlt className="text-xl" />
-                </button>
-                <button className="text-primary hover:text-accent">
-                  <FaVideo className="text-xl" />
-                </button>
-                <div className="relative" ref={optionsRef}>
-                  <button
-                    className="text-primary hover:text-accent"
-                    onClick={() => setShowOptions(!showOptions)}
-                  >
-                    <FaEllipsisV className="text-xl" />
-                  </button>
-                  {showOptions && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white border rounded-lg shadow-lg z-10">
-                      <ul className="py-2">
-                        <li className="px-4 py-2 hover:bg-gray-100 cursor-pointer">
-                          Create Poll
-                        </li>
-                        <li className="px-4 py-2 hover:bg-gray-100 cursor-pointer">
-                          Set Nickname
-                        </li>
-                        <li className="px-4 py-2 hover:bg-gray-100 cursor-pointer">
-                          Add Members
-                        </li>
-                        <li className="px-4 py-2 hover:bg-gray-100 cursor-pointer">
-                          Leave Group
-                        </li>
-                        <li className="px-4 py-2 hover:bg-gray-100 cursor-pointer">
-                          Delete Group
-                        </li>
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
+            <MessengerHeader
+              selectedBoard={selectedBoard}
+              showOptions={showOptions}
+              setShowOptions={setShowOptions}
+              createPoll={createPoll}
+            />
             {/* Chat Window */}
-            <div className="chat-window flex-1 border rounded-lg overflow-y-scroll bg-gray-50 shadow-inner p-4">
-              {messages.length > 0 ? (
-                messages.map((msg, index) => {
-                  const isSender = msg.senderId === currentUser._id; // Check if the message is from the current user
-                  const previousMessage = messages[index - 1];
-                  const shouldShowDate = !previousMessage || 
-                    new Date(msg.timestamp).toDateString() !== new Date(previousMessage.timestamp).toDateString(); // Show date if it's a new day
-
-                  return (
-                    <div
-                      key={msg.messageId}
-                      ref={index === messages.length - 1 ? lastMessageRef : null} // Attach ref to the last message
-                    >
-                      {/* Show date if it's a new day */}
-                      {shouldShowDate && (
-                        <p className="text-center text-gray-500 text-xs mb-2">
-                          {formatDate(msg.timestamp)}
-                        </p>
-                      )}
-                      <div
-                        className={`mb-4 flex ${isSender ? "justify-end" : "justify-start"}`}
-                      >
-                        <div
-                          className="flex flex-row-reverse items-center gap-2"
-                          onClick={() =>
-                            setClickedMessageId(
-                              clickedMessageId === msg.messageId ? null : msg.messageId
-                            )
-                          } // Toggle clickedMessageId on click
-                        >
-                          <div
-                            className={`relative max-w-full sm:max-w-xs md:max-w-sm lg:max-w-md p-4 rounded-2xl shadow-lg cursor-pointer ${
-                              isSender
-                                ? "bg-primary text-white rounded-br-none text-right" // Align outgoing messages to the end
-                                : "bg-gray-200 text-gray-800 rounded-bl-none text-left" // Align incoming messages to the start
-                            }`}
-                          >
-                            <p className={`text-sm font-semibold mb-1 ${isSender ? "text-end" : "text-start"}`}>
-                              {getSenderName(msg.senderId)}
-                            </p>
-                            {msg.deletedBy ? (
-                              <p className="text-sm italic text-gray-500">
-                                Message deleted by {msg.deletedBy} at {formatTime(msg.deletedAt)}
-                              </p>
-                            ) : (
-                              <>
-                                <p className="text-base leading-relaxed">{msg.text}</p>
-                                {clickedMessageId === msg.messageId && ( // Show time only if the message is clicked
-                                  <p className={`text-xs text-gray-400 mt-2 ${isSender ? "text-right" : "text-left"}`}>
-                                    {formatTime(msg.timestamp)}
-                                  </p>
-                                )}
-                              </>
-                            )}
-                          </div>
-                          {isSender && !msg.deletedBy && (
-                            <div className="relative">
-                              <button
-                                className="text-gray-500 hover:text-gray-700"
-                                onClick={(e) => {
-                                  e.stopPropagation(); // Prevent triggering the parent click event
-                                  setShowMessageOptions(
-                                    showMessageOptions === msg.messageId ? null : msg.messageId
-                                  );
-                                }}
-                              >
-                                <FaEllipsisV />
-                              </button>
-                              {showMessageOptions === msg.messageId && (
-                                <div className="absolute right-0 mt-2 w-32 bg-white border rounded-lg shadow-lg z-10">
-                                  <ul className="py-2">
-                                    <li
-                                      className="px-4 py-2 text-black cursor-pointer"
-                                      onClick={() => {
-                                        const newText = prompt("Edit your message:", msg.text);
-                                        if (newText !== null) editMessage(msg.messageId, newText);
-                                        setShowMessageOptions(null);
-                                      }}
-                                    >
-                                      Edit
-                                    </li>
-                                    <li
-                                      className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-black"
-                                      onClick={() => {
-                                        deleteMessage(msg.messageId);
-                                        setShowMessageOptions(null);
-                                      }}
-                                    >
-                                      Delete
-                                    </li>
-                                  </ul>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <p className="text-gray-500 text-center">No messages yet.</p>
-              )}
-            </div>
-
+            <ChatWindow
+              pinnedMessages={pinnedMessages}
+              currentPinnedIndex={currentPinnedIndex}
+              handlePreviousPinned={handlePreviousPinned}
+              handleNextPinned={handleNextPinned}
+              messages={messages}
+              currentUser={currentUser}
+              lastMessageRef={lastMessageRef}
+              clickedMessageId={clickedMessageId}
+              setClickedMessageId={setClickedMessageId}
+              showMessageOptions={showMessageOptions}
+              setShowMessageOptions={setShowMessageOptions}
+              pinMessage={pinMessage}
+              editMessage={editMessage}
+              deleteMessage={deleteMessage}
+              reactToMessage={reactToMessage}
+              showReactionDropdown={showReactionDropdown}
+              setShowReactionDropdown={setShowReactionDropdown}
+              getSenderName={getSenderName}
+              formatDate={formatDate}
+              formatTime={formatTime}
+              getSeenByNames={getSeenByNames}
+              handleScroll={handleScroll}
+              setMessages={setMessages} // Pass setMessages as a prop
+            />
             {/* Message Input */}
-            <div className="mt-4 flex flex-col sm:flex-row items-center relative">
-              <div className="relative mr-2 mb-2 sm:mb-0" ref={attachDropdownRef}>
-                <button
-                  className="text-primary hover:text-accent"
-                  onClick={() => setShowAttachDropdown(!showAttachDropdown)}
-                >
-                  <FaCirclePlus className="text-2xl" />
-                </button>
-                {showAttachDropdown && (
-                  <div className="absolute bottom-full mb-2 left-0 bg-white border rounded-lg shadow-lg w-48 z-10">
-                    <ul className="py-2">
-                      <li className="px-4 py-2 hover:bg-gray-100 cursor-pointer">
-                        Attach File
-                      </li>
-                      <li className="px-4 py-2 hover:bg-gray-100 cursor-pointer">
-                        Attach Image
-                      </li>
-                      <li className="px-4 py-2 hover:bg-gray-100 cursor-pointer">
-                        Create Poll
-                      </li>
-                      <li className="px-4 py-2 hover:bg-gray-100 cursor-pointer">
-                        Other Options
-                      </li>
-                    </ul>
-                  </div>
-                )}
-              </div>
-              <input
-                type="text"
-                className="flex-1 border rounded-lg p-2 mb-2 sm:mb-0 sm:mr-2"
-                placeholder="Type your message..."
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-              />
-              <button
-                className="text-primary text-2xl px-4 py-2 rounded-lg"
-                onClick={sendMessage}
-              >
-                <AiOutlineSend className="inline-block" /></button>
-            </div>
+            <MessageInput
+              newMessage={newMessage}
+              setNewMessage={setNewMessage}
+              sendMessage={sendMessage}
+              showAttachDropdown={showAttachDropdown}
+              setShowAttachDropdown={setShowAttachDropdown}
+              attachDropdownRef={attachDropdownRef}
+            />
           </>
         ) : (
           <motion.p
@@ -483,30 +607,29 @@ const Messenger = () => {
 
       {/* Sidebar with board list */}
       <motion.div
-        className="board-list w-full md:w-1/4 bg-white p-4 overflow-y-auto shadow-lg"
+        className="board-list w-full md:w-1/4 bg-white p-4 sm:p-6 overflow-y-auto shadow-lg rounded-lg"
         initial={{ x: 200 }}
         animate={{ x: 0 }}
+        exit={{ x: 200 }}
         transition={{ duration: 0.5 }}
       >
-        <h2 className="text-lg font-bold mb-4 text-primary">Your Boards</h2>
-        <ul className="space-y-2">
-          {boards.map((board) => (
-            <motion.li
-              key={board._id}
-              className={`p-3 rounded-lg cursor-pointer ${
-                selectedBoard?._id === board._id
-                  ? "bg-primary text-white"
-                  : "bg-gray-100 text-gray-800"
-              } shadow hover:shadow-lg`}
-              whileHover={{ scale: 1.05 }}
-              onClick={() => handleBoardSelect(board)}
-            >
-              {board.name}
-            </motion.li>
-          ))}
-        </ul>
+        <motion.h2
+          className="text-lg sm:text-xl font-bold mb-4 sm:mb-6 text-primary"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5 }}
+        >
+          Your Boards
+        </motion.h2>
+        <BoardList
+          boards={boards}
+          selectedBoard={selectedBoard}
+          handleBoardSelect={handleBoardSelect}
+          getUnseenMessageCount={getUnseenMessageCount}
+          messages={messages}
+        />
       </motion.div>
-    </div>
+    </motion.div>
   );
 };
 
