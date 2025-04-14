@@ -20,6 +20,8 @@ import MessengerHeader from "./MessengerHeader";
 import BoardList from "./BoardList";
 import ChatWindow from "./ChatWindow";
 import MessageInput from "./MessageInput";
+import SearchMessage from "./SearchMessage"; // Import SearchMessage
+import PollCreationModal from "./PollCreationModal"; // Import the new modal
 
 const Messenger = () => {
   const { currentUser } = useAuth(); // Access currentUser from AuthContext
@@ -45,6 +47,8 @@ const Messenger = () => {
   const [showReactionDropdown, setShowReactionDropdown] = useState(null); // Track which message's reaction dropdown is visible
   const [polls, setPolls] = useState([]); // State to store polls
   const [selectedPollOption, setSelectedPollOption] = useState(null); // Track selected poll option
+  const messageRefs = useRef({}); // Store refs for each message
+  const [showPollModal, setShowPollModal] = useState(false); // State for poll modal
 
   useEffect(() => {
     if (currentUser) {
@@ -57,7 +61,7 @@ const Messenger = () => {
       if (!currentUser?._id) return; // Ensure currentUser is available
 
       try {
-        const response = await axios.get("http://localhost:5000/boards"); // Updated base URL
+        const response = await axios.get("https://new-server-brainaics.onrender.com/boards"); // Updated base URL
         const userBoards = response.data.filter((board) =>
           board.members?.some((member) => member.userId === currentUser._id)
         ); // Filter boards where the user is a member
@@ -109,18 +113,19 @@ const Messenger = () => {
   }, []);
 
   useEffect(() => {
-    // Fetch messages and members for the selected board
+    // Fetch messages, members, and polls for the selected board
     const fetchBoardData = async () => {
       if (!selectedBoard) return;
 
       try {
         const response = await fetch(
-          `http://localhost:5000/boards/${selectedBoard._id}` // Updated base URL
+          `https://new-server-brainaics.onrender.com/boards/${selectedBoard._id}` // Updated base URL
         );
         if (response.ok) {
           const boardData = await response.json();
           setMessages(boardData.messages || []); // Set messages from the board
           setMembers(boardData.members || []); // Set members from the board
+          setPolls((boardData.polls || []).filter((poll) => poll.isActive)); // Filter active polls
 
           // Update selectedBoard to include members
           setSelectedBoard((prevBoard) => ({
@@ -136,7 +141,7 @@ const Messenger = () => {
     };
 
     fetchBoardData();
-  }, [selectedBoard]);
+  }, [selectedBoard]); // Fetch data when selectedBoard changes
 
   const getUnseenMessageCount = (messages) => {
     return messages.filter((msg) => !msg.seenBy?.includes(currentUser._id))
@@ -207,7 +212,7 @@ const Messenger = () => {
 
     try {
       const response = await fetch(
-        `http://localhost:5000/boards/${selectedBoard._id}/messages`, // Updated base URL
+        `https://new-server-brainaics.onrender.com/boards/${selectedBoard._id}/messages`, // Updated base URL
         {
           method: "PUT",
           headers: {
@@ -241,7 +246,7 @@ const Messenger = () => {
 
     try {
       const response = await fetch(
-        `http://localhost:5000/boards/${selectedBoard._id}/messages/${messageId}`, // Updated base URL
+        `https://new-server-brainaics.onrender.com/boards/${selectedBoard._id}/messages/${messageId}`, // Updated base URL
         {
           method: "PATCH",
           headers: {
@@ -271,7 +276,7 @@ const Messenger = () => {
 
     try {
       const response = await fetch(
-        `http://localhost:5000/boards/${selectedBoard._id}/messages/${messageId}`, // Updated base URL
+        `https://new-server-brainaics.onrender.com/boards/${selectedBoard._id}/messages/${messageId}`, // Updated base URL
         {
           method: "DELETE",
           headers: {
@@ -304,7 +309,7 @@ const Messenger = () => {
 
     try {
       const response = await fetch(
-        `http://localhost:5000/boards/${selectedBoard._id}/messages/${messageId}/seen`,
+        `https://new-server-brainaics.onrender.com/boards/${selectedBoard._id}/messages/${messageId}/seen`,
         {
           method: "PATCH",
           headers: {
@@ -334,7 +339,7 @@ const Messenger = () => {
 
     try {
       const response = await fetch(
-        `http://localhost:5000/boards/${selectedBoard._id}/messages/${messageId}/pin`,
+        `https://new-server-brainaics.onrender.com/boards/${selectedBoard._id}/messages/${messageId}/pin`,
         {
           method: "PATCH",
           headers: {
@@ -363,7 +368,7 @@ const Messenger = () => {
 
     try {
       const response = await fetch(
-        `http://localhost:5000/boards/${selectedBoard._id}/messages/${messageId}/unpin`,
+        `https://new-server-brainaics.onrender.com/boards/${selectedBoard._id}/messages/${messageId}/unpin`,
         {
           method: "PATCH",
           headers: {
@@ -392,7 +397,7 @@ const Messenger = () => {
 
     try {
       const response = await fetch(
-        `http://localhost:5000/boards/${selectedBoard._id}/messages/${messageId}/react`, // Updated base URL
+        `https://new-server-brainaics.onrender.com/boards/${selectedBoard._id}/messages/${messageId}/react`, // Updated base URL
         {
           method: "PATCH",
           headers: {
@@ -417,26 +422,14 @@ const Messenger = () => {
     }
   };
 
-  const createPoll = async () => {
-    const question = prompt("Enter your poll question:");
-    if (!question) return;
+  const createPoll = () => {
+    setShowPollModal(true); // Open the poll creation modal
+  };
 
-    const options = prompt(
-      "Enter options separated by commas (e.g., Option1,Option2):"
-    );
-    if (!options) return;
-
-    const pollData = {
-      question,
-      options: options
-        .split(",")
-        .map((option) => ({ text: option.trim(), votes: [] })),
-      createdBy: currentUser._id,
-    };
-
+  const handleCreatePoll = async (pollData) => {
     try {
       const response = await fetch(
-        `http://localhost:5000/boards/${selectedBoard._id}/polls`, // Updated base URL
+        `https://new-server-brainaics.onrender.com/boards/${selectedBoard._id}/polls`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -447,8 +440,10 @@ const Messenger = () => {
       if (response.ok) {
         const newPoll = await response.json();
         setPolls((prev) => [...prev, newPoll]);
+        setShowPollModal(false); // Close the modal
       } else {
-        console.error("Failed to create poll");
+        const errorData = await response.json();
+        alert(errorData.error || "Failed to create poll");
       }
     } catch (error) {
       console.error("Error creating poll:", error);
@@ -458,7 +453,7 @@ const Messenger = () => {
   const votePoll = async (pollId, optionIndex) => {
     try {
       const response = await fetch(
-        `http://localhost:5000/boards/${selectedBoard._id}/polls/${pollId}/vote`,
+        `https://new-server-brainaics.onrender.com/boards/${selectedBoard._id}/polls/${pollId}/vote`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -476,6 +471,26 @@ const Messenger = () => {
       }
     } catch (error) {
       console.error("Error voting on poll:", error);
+    }
+  };
+
+  const removePoll = async (pollId) => {
+    try {
+      const response = await fetch(
+        `https://new-server-brainaics.onrender.com/boards/${selectedBoard._id}/polls/${pollId}`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      if (response.ok) {
+        setPolls((prev) => prev.filter((poll) => poll._id !== pollId)); // Remove poll from state
+      } else {
+        console.error("Failed to remove poll");
+      }
+    } catch (error) {
+      console.error("Error removing poll:", error);
     }
   };
 
@@ -532,6 +547,13 @@ const Messenger = () => {
     return [seenByYou, otherNames].filter(Boolean).join(", ");
   };
 
+  const onScrollToMessage = (messageId) => {
+    const messageElement = messageRefs.current[messageId];
+    if (messageElement) {
+      messageElement.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
   return (
     <motion.div
       className="messenger-container flex flex-col md:flex-row h-screen bg-gray-50"
@@ -540,6 +562,7 @@ const Messenger = () => {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.5 }}
     >
+
       {/* Chat interface */}
       <motion.div
         className="chat-interface w-full md:w-3/4 p-4 sm:p-6 flex flex-col bg-white shadow-lg rounded-lg"
@@ -556,10 +579,14 @@ const Messenger = () => {
               showOptions={showOptions}
               setShowOptions={setShowOptions}
               createPoll={createPoll}
+              messages={messages} // Pass messages
+              onScrollToMessage={onScrollToMessage} // Pass onScrollToMessage
             />
             {/* Chat Window */}
             <ChatWindow
+              boardId={selectedBoard._id} // Pass boardId as a prop
               pinnedMessages={pinnedMessages}
+              setPinnedMessages={setPinnedMessages} // Pass setPinnedMessages as a prop
               currentPinnedIndex={currentPinnedIndex}
               handlePreviousPinned={handlePreviousPinned}
               handleNextPinned={handleNextPinned}
@@ -571,7 +598,7 @@ const Messenger = () => {
               showMessageOptions={showMessageOptions}
               setShowMessageOptions={setShowMessageOptions}
               pinMessage={pinMessage}
-              editMessage={editMessage}
+              editMessage={editMessage} // Pass editMessage as a prop
               deleteMessage={deleteMessage}
               reactToMessage={reactToMessage}
               showReactionDropdown={showReactionDropdown}
@@ -582,6 +609,10 @@ const Messenger = () => {
               getSeenByNames={getSeenByNames}
               handleScroll={handleScroll}
               setMessages={setMessages} // Pass setMessages as a prop
+              messageRefs={messageRefs} // Pass messageRefs to ChatWindow
+              polls={polls} // Pass polls as a prop
+              votePoll={votePoll} // Pass votePoll as a prop
+              removePoll={removePoll} // Pass removePoll as a prop
             />
             {/* Message Input */}
             <MessageInput
@@ -629,6 +660,11 @@ const Messenger = () => {
           messages={messages}
         />
       </motion.div>
+      <PollCreationModal
+        isOpen={showPollModal}
+        onClose={() => setShowPollModal(false)}
+        onCreate={handleCreatePoll}
+      />
     </motion.div>
   );
 };
