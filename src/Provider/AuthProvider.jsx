@@ -3,32 +3,26 @@ import React, { createContext, useEffect, useState } from 'react';
 import { auth } from '../Firebase/firebase.config';
 import { GoogleAuthProvider } from 'firebase/auth';
 import axios from "axios";
-import Loading from '../Component/Shared/Loading/Loading';
 
 export const AuthContext = createContext();
 
 const AuthProvider = ({ children }) => {
     const googleProvider = new GoogleAuthProvider();
     const [currentUser, setCurrentUser] = useState(null);
-    const [loading, setLoading] = useState(true);
 
     const signUpUser = (email, password) => {
-        setLoading(true);
         return createUserWithEmailAndPassword(auth, email, password);
     };
 
     const signUpGoogleUser = () => {
-        setLoading(true);
         return signInWithPopup(auth, googleProvider);
     };
 
     const logInUser = (email, password) => {
-        setLoading(true);
         return signInWithEmailAndPassword(auth, email, password);
     };
 
     const updateUser = (name, photo) => {
-        setLoading(true);
         return updateProfile(auth.currentUser, {
             displayName: name,
             photoURL: photo,
@@ -36,14 +30,13 @@ const AuthProvider = ({ children }) => {
     };
 
     const signOutUser = () => {
-        setLoading(true);
         return signOut(auth);
     };
 
     const fetchUserDataWithRetry = async (email, token, retries = 2) => {
         for (let attempt = 1; attempt <= retries; attempt++) {
             try {
-                const response = await axios.get(`http://localhost:5000/user/${email}`, {
+                const response = await axios.get(`https://new-server-brainaics.onrender.com/user/${email}`, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
                 return response.data; // Return user data if successful
@@ -89,19 +82,13 @@ const AuthProvider = ({ children }) => {
                 setCurrentUser(null);
                 localStorage.removeItem("authToken");
             }
-            setLoading(false);
         });
 
         return () => unsubscribe();
     }, []);
 
-    if (loading) {
-        return <div><Loading/></div>; // Show a loading state while fetching user
-    }
-
     const authInfo = {
         currentUser,
-        loading,
         signUpUser,
         logInUser,
         updateUser,

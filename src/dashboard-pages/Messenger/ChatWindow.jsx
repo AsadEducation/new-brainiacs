@@ -1,15 +1,25 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { FaArrowLeft, FaArrowRight, FaEllipsisV } from "react-icons/fa";
+import {
+  FaArrowLeft,
+  FaArrowRight,
+  FaEllipsisV,
+  FaThumbtack,
+} from "react-icons/fa"; // Add FaThumbtack
 import { MdEmojiEmotions } from "react-icons/md";
 import { IoCloseCircleOutline } from "react-icons/io5";
+import PinMessageModal from "./PinMessageModal"; // Import PinMessageModal
+import EditMessageModal from "./EditMessageModal"; // Import EditMessageModal
 
 const ChatWindow = ({
+  boardId, // Accept boardId as a prop
   pinnedMessages,
+  setPinnedMessages, // Accept setPinnedMessages as a prop
   currentPinnedIndex,
   handlePreviousPinned,
   handleNextPinned,
   messages,
+  messageRefs,
   currentUser,
   lastMessageRef,
   clickedMessageId,
@@ -28,6 +38,9 @@ const ChatWindow = ({
   getSeenByNames,
   handleScroll,
   setMessages, // Add setMessages as a prop
+  polls, // Accept polls as a prop
+  votePoll, // Accept votePoll as a prop
+  removePoll, // Accept removePoll as a prop
 }) => {
   const [reactionModal, setReactionModal] = useState({
     isOpen: false,
@@ -35,6 +48,13 @@ const ChatWindow = ({
   });
   const [pinModal, setPinModal] = useState({ isOpen: false, messageId: null }); // State for pin modal
   const [pinnedLogModal, setPinnedLogModal] = useState(false); // State for pinned log modal
+  const [pinnedLog, setPinnedLog] = useState([]); // State for pinned messages log
+  const [editModal, setEditModal] = useState({
+    isOpen: false,
+    messageId: null,
+    text: "",
+  }); // State for edit modal
+  const [pollModal, setPollModal] = useState({ isOpen: false, poll: null }); // State for poll modal
 
   const dropdownRef = useRef(null);
 
@@ -51,6 +71,29 @@ const ChatWindow = ({
     };
   }, []);
 
+  useEffect(() => {
+    const fetchPinnedMessages = async () => {
+      try {
+        if (!boardId) {
+          console.error("boardId is not defined");
+          return;
+        }
+        const response = await fetch(`https://new-server-brainaics.onrender.com/boards/${boardId}`);
+        if (!response.ok) {
+          throw new Error(
+            `Failed to fetch: ${response.status} ${response.statusText}`
+          );
+        }
+        const data = await response.json();
+        setPinnedMessages(data.pinnedMessages || []); // Set pinned messages from the backend
+      } catch (error) {
+        console.error("Failed to fetch pinned messages:", error);
+      }
+    };
+
+    fetchPinnedMessages();
+  }, [boardId, setPinnedMessages]); // Fetch pinned messages on component mount or boardId change
+
   const handlePinMessage = (messageId) => {
     setPinModal({ isOpen: true, messageId }); // Open the pin modal
   };
@@ -60,9 +103,22 @@ const ChatWindow = ({
     setPinModal({ isOpen: false, messageId: null }); // Close the modal
   };
 
+  const handleEditMessage = (messageId, text) => {
+    setEditModal({ isOpen: true, messageId, text }); // Open the edit modal
+  };
+
+  const confirmEditMessage = () => {
+    if (editModal.text.trim()) {
+      editMessage(editModal.messageId, editModal.text); // Call the editMessage function
+      setEditModal({ isOpen: false, messageId: null, text: "" }); // Close the modal
+    }
+  };
+
   const removeReaction = async (messageId, emoji, userId) => {
     try {
-      console.log(`Removing reaction: ${emoji} by user: ${userId} for message: ${messageId}`); // Log the reaction being removed
+      console.log(
+        `Removing reaction: ${emoji} by user: ${userId} for message: ${messageId}`
+      ); // Log the reaction being removed
 
       // Update the message in the messages state
       setMessages((prevMessages) =>
@@ -88,6 +144,48 @@ const ChatWindow = ({
     }
   };
 
+  const unpinMessage = async (messageId) => {
+    try {
+      // Call the backend API to unpin the message
+      const response = await fetch(
+        `https://new-server-brainaics.onrender.com/boards/${boardId}/messages/${messageId}/unpin`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.ok) {
+        // Update the pinnedMessages state
+        setPinnedMessages((prev) =>
+          prev.filter((msg) => msg.messageId !== messageId)
+        );
+
+        // Remove the unpinned message from the pinned log
+        setPinnedLog((prevLog) =>
+          prevLog.filter((log) => log.messageId !== messageId)
+        );
+      } else {
+        console.error("Failed to unpin message");
+      }
+    } catch (error) {
+      console.error("Error unpinning message:", error);
+    }
+  };
+
+  const formatExpiryTime = (expiry) => {
+    const date = new Date(expiry);
+    return date.toLocaleString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
   return (
     <>
       <motion.div
@@ -99,8 +197,9 @@ const ChatWindow = ({
       >
         {pinnedMessages.length > 0 && (
           <motion.div
-            className="sticky -top-10 bg-yellow-100 px-4 py-1 rounded-lg shadow z-10 flex flex-col sm:flex-row items-center justify-between gap-4"
-            initial={{ scale: 0.9 }}
+            className="sticky -top-11 bg-white shadow-md rounded-lg p-2 z-20 flex flex-col sm:flex-row items-center justify-between
+ gap-1 border border-gray-200"
+            initial={{ scale: 0.95 }}
             animate={{ scale: 1 }}
             transition={{ duration: 0.3 }}
           >
@@ -108,23 +207,41 @@ const ChatWindow = ({
               className="text-primary hover:text-accent transition duration-200"
               onClick={handlePreviousPinned}
             >
-              <FaArrowLeft className="text-xl" />
+              <FaArrowLeft className="text-2xl" />
             </button>
-            <div className="text-center">
-              <p className="font-bold text-gray-800 text-sm sm:text-base md:text-lg">
-                {pinnedMessages[currentPinnedIndex]?.text}
+            <div className="flex-1 text-center">
+              <p className="font-semibold  text-base sm:text-lg md:text-sm truncate">
+                {pinnedMessages[currentPinnedIndex]?.text ||
+                  "No pinned message"}
               </p>
-              <p className="text-xs sm:text-sm text-gray-600">
-                Pinned by:{" "}
-                {getSenderName(pinnedMessages[currentPinnedIndex]?.pinnedBy)}
+              <p className="text-xs  mt-1">
+                <span className="font-medium">Pinned by:</span>{" "}
+                {getSenderName(pinnedMessages[currentPinnedIndex]?.pinnedBy) ||
+                  "Unknown"}
+              </p>
+              <p className="text-xs">
+                <span className="font-medium">Expires on:</span>{" "}
+                {formatExpiryTime(
+                  pinnedMessages[currentPinnedIndex]?.pinExpiry
+                ) || "N/A"}
               </p>
             </div>
-            <button
-              className="text-primary hover:text-accent transition duration-200"
-              onClick={handleNextPinned}
-            >
-              <FaArrowRight className="text-xl" />
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                className="text-primary hover:text-accent transition duration-200"
+                onClick={handleNextPinned}
+              >
+                <FaArrowRight className="text-2xl" />
+              </button>
+              <button
+                className="text-red-500 hover:text-red-700 transition duration-200 flex items-center gap-1"
+                onClick={() =>
+                  unpinMessage(pinnedMessages[currentPinnedIndex]?.messageId)
+                }
+              >
+                <FaThumbtack className="text-xl rotate-45" />
+              </button>
+            </div>
           </motion.div>
         )}
         {messages.length > 0 ? (
@@ -139,7 +256,7 @@ const ChatWindow = ({
             return (
               <div
                 key={msg.messageId}
-                ref={index === messages.length - 1 ? lastMessageRef : null}
+                ref={(el) => (messageRefs.current[msg.messageId] = el)} // Assign ref
                 onClick={() =>
                   setClickedMessageId(
                     clickedMessageId === msg.messageId ? null : msg.messageId
@@ -183,16 +300,9 @@ const ChatWindow = ({
                               </li>
                               <li
                                 className="px-4 py-2 hover:shadow cursor-pointer"
-                                onClick={() => {
-                                  const newText = prompt(
-                                    "Edit your message:",
-                                    msg.text
-                                  );
-                                  if (newText) {
-                                    editMessage(msg.messageId, newText);
-                                  }
-                                  setShowMessageOptions(null);
-                                }}
+                                onClick={() =>
+                                  handleEditMessage(msg.messageId, msg.text)
+                                } // Open the edit modal
                               >
                                 Edit
                               </li>
@@ -225,7 +335,7 @@ const ChatWindow = ({
                         {getSenderName(msg.senderId)}
                       </p>
                       {msg.deletedBy ? (
-                        <p className="text-sm italic text-gray-500">
+                        <p className="text-sm italic text-gray-200">
                           Message deleted by {msg.deletedBy} at{" "}
                           {formatTime(msg.deletedAt)}
                         </p>
@@ -258,7 +368,11 @@ const ChatWindow = ({
                                           e.stopPropagation();
                                           setReactionModal({
                                             isOpen: true,
-                                            reactions: { emoji, users, messageId: msg.messageId },
+                                            reactions: {
+                                              emoji,
+                                              users,
+                                              messageId: msg.messageId,
+                                            },
                                           });
                                         }}
                                       >
@@ -300,34 +414,54 @@ const ChatWindow = ({
                                     className="cursor-pointer hover:shadow p-2 rounded text-2xl"
                                     onClick={async () => {
                                       try {
-                                        await reactToMessage(msg.messageId, emoji); // Add reaction to the database
+                                        await reactToMessage(
+                                          msg.messageId,
+                                          emoji
+                                        ); // Add reaction to the database
 
-                                        console.log(`User ${currentUser._id} reacted with ${emoji} to message ${msg.messageId}`); // Log the reaction
+                                        console.log(
+                                          `User ${currentUser._id} reacted with ${emoji} to message ${msg.messageId}`
+                                        ); // Log the reaction
 
                                         // Update the message in the messages state
                                         setMessages((prevMessages) => {
-                                          const updatedMessages = prevMessages.map((msg) =>
-                                            msg.messageId === reactionModal.reactions.messageId
-                                              ? {
-                                                  ...msg,
-                                                  reactions: {
-                                                    ...Object.fromEntries(
-                                                      Object.entries(msg.reactions).map(([key, users]) => [
-                                                        key,
-                                                        users.filter((id) => id !== currentUser._id), // Remove user's previous reaction
-                                                      ])
-                                                    ),
-                                                    [emoji]: [currentUser._id], // Replace with the new reaction
-                                                  },
-                                                }
-                                              : msg
-                                          );
+                                          const updatedMessages =
+                                            prevMessages.map((msg) =>
+                                              msg.messageId ===
+                                              reactionModal.reactions.messageId
+                                                ? {
+                                                    ...msg,
+                                                    reactions: {
+                                                      ...Object.fromEntries(
+                                                        Object.entries(
+                                                          msg.reactions
+                                                        ).map(
+                                                          ([key, users]) => [
+                                                            key,
+                                                            users.filter(
+                                                              (id) =>
+                                                                id !==
+                                                                currentUser._id
+                                                            ), // Remove user's previous reaction
+                                                          ]
+                                                        )
+                                                      ),
+                                                      [emoji]: [
+                                                        currentUser._id,
+                                                      ], // Replace with the new reaction
+                                                    },
+                                                  }
+                                                : msg
+                                            );
                                           return updatedMessages;
                                         });
 
                                         setShowReactionDropdown(null); // Close the dropdown
                                       } catch (error) {
-                                        console.error("Failed to add reaction:", error);
+                                        console.error(
+                                          "Failed to add reaction:",
+                                          error
+                                        );
                                       }
                                     }}
                                   >
@@ -372,13 +506,60 @@ const ChatWindow = ({
         )}
       </motion.div>
 
-      {/* Add a button to show pinned messages log */}
-      <button
-        className="fixed bottom-4 right-4 bg-primary text-white px-4 py-2 rounded-lg shadow-lg hover:bg-accent transition"
-        onClick={() => setPinnedLogModal(true)}
-      >
-        View Pinned Messages Log
-      </button>
+      {/* Polls Section */}
+      {polls.length > 0 && (
+        <div className="sticky flex justify-between items-center bottom-0 bg-white shadow-md rounded-lg p-4 z-30">
+          <h3 className="text-lg font-boldtext-primary">Active Polls</h3>
+          {polls.map((poll) => (
+            <div key={poll._id} className="poll-card">
+              <button
+                className="px-4 py-2 bg-primary text-white rounded hover:bg-accent transition"
+                onClick={() => setPollModal({ isOpen: true, poll })} // Open the poll modal
+              >
+                Vote Now
+              </button>
+              <button
+                className="ml-2 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-700 transition"
+                onClick={() => removePoll(poll._id)} // Remove poll functionality
+              >
+                Remove Poll
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Poll Voting Modal */}
+      {pollModal.isOpen && (
+        <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-bold mb-4">{pollModal.poll.question}</h3>
+            <ul className="space-y-2">
+              {pollModal.poll.options.map((option, index) => (
+                <li
+                  key={index}
+                  className="flex justify-between items-center bg-gray-200 p-2 rounded-lg hover:bg-gray-300 cursor-pointer"
+                  onClick={() => {
+                    votePoll(pollModal.poll._id, index); // Call votePoll function
+                    setPollModal({ isOpen: false, poll: null }); // Close the modal
+                  }}
+                >
+                  <span>{option.text}</span>
+                  <span className="text-sm text-gray-500">
+                    Votes: {option.votes.length}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <button
+              className="mt-4 px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition"
+              onClick={() => setPollModal({ isOpen: false, poll: null })} // Close the modal
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Pinned Messages Log Modal */}
       {pinnedLogModal && (
@@ -386,25 +567,30 @@ const ChatWindow = ({
           <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
             <h3 className="text-lg font-bold mb-4">Pinned Messages Log</h3>
             <ul className="space-y-4">
-              {pinnedMessages.length > 0 ? (
-                pinnedMessages.map((msg, index) => (
+              {pinnedLog.length > 0 ? (
+                pinnedLog.map((log, index) => (
                   <li key={index} className="border-b pb-2">
                     <p className="text-sm text-gray-800">
-                      <strong>Message:</strong> {msg.text || "No text available"}
+                      <strong>Message:</strong>{" "}
+                      {log.text || "No text available"}
                     </p>
                     <p className="text-xs text-gray-600">
-                      <strong>Pinned By:</strong> {getSenderName(msg.pinnedBy)}
+                      <strong>Pinned By:</strong> {getSenderName(log.pinnedBy)}
                     </p>
                     <p className="text-xs text-gray-600">
-                      <strong>Pin Expiry:</strong>{" "}
-                      {msg.pinExpiry
-                        ? new Date(msg.pinExpiry).toLocaleString()
-                        : "No expiry"}
+                      <strong>Pinned At:</strong>{" "}
+                      {new Date(log.pinnedAt).toLocaleString()}
+                    </p>
+                    <p className="text-xs text-gray-600">
+                      <strong>Pin Duration:</strong> {log.pinDuration}{" "}
+                      {log.pinDuration === 1 ? "Day" : "Days"}
                     </p>
                   </li>
                 ))
               ) : (
-                <p className="text-gray-500 text-sm">No pinned messages found.</p>
+                <p className="text-gray-500 text-sm">
+                  No pinned messages found.
+                </p>
               )}
             </ul>
             <button
@@ -418,30 +604,22 @@ const ChatWindow = ({
       )}
 
       {/* Pin Modal */}
-      {pinModal.isOpen && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 backdrop-blur-xs">
-          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-sm">
-            <h3 className="text-lg font-bold mb-4">Select Pin Duration</h3>
-            <div className="flex flex-col gap-2">
-              {[1, 3, 7, 15].map((duration) => (
-                <button
-                  key={duration}
-                  className="px-4 py-2  rounded hover:bg-primary hover:text-white transition"
-                  onClick={() => confirmPinMessage(duration)}
-                >
-                  {duration} {duration === 1 ? "Day" : "Days"}
-                </button>
-              ))}
-            </div>
-            <button
-              className="mt-4 px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition"
-              onClick={() => setPinModal({ isOpen: false, messageId: null })}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
+      <PinMessageModal
+        isOpen={pinModal.isOpen}
+        onClose={() => setPinModal({ isOpen: false, messageId: null })}
+        onConfirm={confirmPinMessage}
+      />
+
+      {/* Edit Modal */}
+      <EditMessageModal
+        isOpen={editModal.isOpen}
+        onClose={() =>
+          setEditModal({ isOpen: false, messageId: null, text: "" })
+        }
+        onConfirm={confirmEditMessage}
+        text={editModal.text}
+        setText={(text) => setEditModal((prev) => ({ ...prev, text }))}
+      />
 
       {reactionModal.isOpen && (
         <div className="fixed inset-0 backdrop-blur-xs flex items-center justify-center z-50 px-4">
