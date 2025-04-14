@@ -1,7 +1,7 @@
 ## 🌐 Testing Live Link
 
 Click the link below to view the testing Live of development branch:  
-🔗 **[View Live Project](https://brainiacs-1000.netlify.app)**
+🔗 **[View Live Project](https://brainiacs1.netlify.app)**
 
 <hr>
 <h3>Rule sets:</h3>
