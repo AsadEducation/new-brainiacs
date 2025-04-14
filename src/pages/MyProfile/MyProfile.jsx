@@ -2,17 +2,17 @@ import { useEffect, useState } from "react";
 import useAuth from "../../Hooks/useAuth";
 
 const MyProfile = () => {
-  const [summary, setSummary] = useState(null);
+  const [reward, setReward] = useState(null);
   const { currentUser } = useAuth();
 
   useEffect(() => {
     fetch("http://localhost:5000/myProfile")
       .then((res) => res.json())
-      .then((data) => setSummary(data))
+      .then((data) => setReward(data))
       .catch((err) => console.error(err));
   }, []);
 
-  if (!summary) return <p className="text-center">Loading...</p>;
+  if (!reward) return <p className="text-center">Loading...</p>;
 
   const {
     points,
@@ -21,7 +21,7 @@ const MyProfile = () => {
     nextBadge,
     progressToNext,
     badges,
-  } = summary;
+  } = reward;
 
   return (
     <div className="px-4 py-6">
