@@ -3,6 +3,7 @@ import useAuth from "../../Hooks/useAuth";
 
 const MyProfile = () => {
   const [reward, setReward] = useState(null);
+  
   const { currentUser } = useAuth();
 
   useEffect(() => {
